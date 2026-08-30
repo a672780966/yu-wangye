@@ -1,0 +1,7 @@
+{
+  "name": "YU — Controlled Agentic Software Construction",
+  "description": "Local-first Controlled Agentic Software Construction Workbench. Harness intelligence. Retain control.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
