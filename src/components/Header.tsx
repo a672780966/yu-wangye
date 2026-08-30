@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X } from 'lucide-react';
 import { SPINE_SECTIONS } from './SystemSpine';
+import { scrollController } from '../lib/scrollController';
 
 interface HeaderProps {
   onEnterClick: () => void;
@@ -65,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({ onEnterClick, activeSectionId = 
             className="group flex flex-col items-center text-center cursor-pointer select-none mech-btn"
             onClick={(e) => {
               e.preventDefault();
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              scrollController.scrollTo(0);
             }}
           >
             <span

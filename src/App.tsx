@@ -13,19 +13,20 @@ import { PromiseSection } from './components/PromiseSection';
 import { FinalCTA } from './components/FinalCTA';
 import { EnterModal } from './components/EnterModal';
 import { SystemSpine, SPINE_SECTIONS } from './components/SystemSpine';
+import { scrollController } from './lib/scrollController';
 
 export default function App() {
   const [isEnterModalOpen, setIsEnterModalOpen] = useState(false);
   const [activeSectionId, setActiveSectionId] = useState<string>('section-hero');
 
   const scrollToSection = (sectionId: string) => {
-    const el = document.getElementById(sectionId);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
+    scrollController.scrollTo(sectionId);
   };
 
   useEffect(() => {
+    // Initialize global controlled mechanical smooth scroll
+    const cleanupScroll = scrollController.init();
+
     const observerCallback: IntersectionObserverCallback = (entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
@@ -45,7 +46,10 @@ export default function App() {
       if (el) observer.observe(el);
     });
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      cleanupScroll();
+    };
   }, []);
 
   return (
@@ -75,7 +79,10 @@ export default function App() {
       {/* Relative Content Container */}
       <div className="relative z-10">
         {/* Precision Header */}
-        <Header onEnterClick={() => setIsEnterModalOpen(true)} />
+        <Header
+          onEnterClick={() => setIsEnterModalOpen(true)}
+          activeSectionId={activeSectionId}
+        />
 
         {/* 01. Hero Section with Parametric Möbius Infinity Canvas */}
         <HeroSection onScrollClick={() => scrollToSection('section-problem')} />

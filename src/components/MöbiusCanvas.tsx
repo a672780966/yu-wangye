@@ -4,180 +4,126 @@ interface MöbiusCanvasProps {
   className?: string;
 }
 
+// 3D vector helper utilities
+interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+const normalize = (v: Vec3): Vec3 => {
+  const len = Math.hypot(v.x, v.y, v.z) || 1;
+  return { x: v.x / len, y: v.y / len, z: v.z / len };
+};
+
+const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
+
+const cross = (a: Vec3, b: Vec3): Vec3 => ({
+  x: a.y * b.z - a.z * b.y,
+  y: a.z * b.x - a.x * b.z,
+  z: a.x * b.y - a.y * b.x,
+});
+
+// Fixed Environmental Lighting vectors in world space
+const KEY_LIGHT_DIR = normalize({ x: -0.6, y: -0.6, z: 0.52 });
+const FILL_LIGHT_DIR = normalize({ x: 0.6, y: 0.6, z: -0.52 });
+const CAM_DIR: Vec3 = { x: 0, y: 0, z: 1 };
+
+// Deterministic Background Spatial Reference Points (16 points)
+const BACKGROUND_POINTS: { xRatio: number; yRatio: number; alpha: number }[] = [
+  { xRatio: 0.12, yRatio: 0.18, alpha: 0.14 },
+  { xRatio: 0.88, yRatio: 0.22, alpha: 0.16 },
+  { xRatio: 0.18, yRatio: 0.82, alpha: 0.12 },
+  { xRatio: 0.82, yRatio: 0.78, alpha: 0.15 },
+  { xRatio: 0.28, yRatio: 0.35, alpha: 0.13 },
+  { xRatio: 0.72, yRatio: 0.32, alpha: 0.15 },
+  { xRatio: 0.15, yRatio: 0.48, alpha: 0.14 },
+  { xRatio: 0.85, yRatio: 0.55, alpha: 0.13 },
+  { xRatio: 0.38, yRatio: 0.15, alpha: 0.16 },
+  { xRatio: 0.62, yRatio: 0.85, alpha: 0.12 },
+  { xRatio: 0.48, yRatio: 0.25, alpha: 0.14 },
+  { xRatio: 0.52, yRatio: 0.75, alpha: 0.15 },
+  { xRatio: 0.22, yRatio: 0.65, alpha: 0.12 },
+  { xRatio: 0.78, yRatio: 0.42, alpha: 0.14 },
+  { xRatio: 0.32, yRatio: 0.88, alpha: 0.13 },
+  { xRatio: 0.68, yRatio: 0.12, alpha: 0.15 },
+];
+
 export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+
     const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+    let isVisible = true;
     let animationFrameId: number;
-    let width = (canvas.width = canvas.parentElement?.clientWidth || window.innerWidth);
-    let height = (canvas.height = canvas.parentElement?.clientHeight || window.innerHeight);
 
-    const handleResize = () => {
-      if (!canvas || !canvas.parentElement) return;
-      width = canvas.width = canvas.parentElement.clientWidth;
-      height = canvas.height = canvas.parentElement.clientHeight;
-      initPoints();
+    const resize = () => {
+      if (!canvas || !container) return;
+      const rect = container.getBoundingClientRect();
+      width = rect.width;
+      height = rect.height;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
     };
 
-    window.addEventListener('resize', handleResize);
+    resize();
+    window.addEventListener('resize', resize);
 
-    // Highly damped mouse parallax (max 4-8px)
-    let mouseX = 0;
-    let mouseY = 0;
-    let targetMouseX = 0;
-    let targetMouseY = 0;
-    let rawMouseX = -1000;
-    let rawMouseY = -1000;
-    let lastUserActivity = Date.now();
+    // Pause rendering when Hero is scrolled out of view or tab is hidden
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        isVisible = entry.isIntersecting;
+      },
+      { threshold: 0.05 }
+    );
+    observer.observe(container);
 
-    const handleMouseMove = (e: MouseEvent) => {
-      lastUserActivity = Date.now();
-      const rect = canvas.getBoundingClientRect();
-      rawMouseX = e.clientX - rect.left;
-      rawMouseY = e.clientY - rect.top;
-      const x = (rawMouseX / width) - 0.5;
-      const y = (rawMouseY / height) - 0.5;
-      targetMouseX = x * 0.08; // Damped parallax
-      targetMouseY = y * 0.08;
+    const handleVisibilityChange = () => {
+      isVisible = !document.hidden;
     };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    const handleMouseLeave = () => {
-      rawMouseX = -1000;
-      rawMouseY = -1000;
-      targetMouseX = 0;
-      targetMouseY = 0;
-    };
+    // Constants for Deterministic Engineered Geometry
+    const STATIONS = 72; // 72 stations along the loop
+    const RAILS = 5; // 5 longitudinal rails: Rail 0 (Outer), 1 (Sec), 2 (Center Spine), 3 (Sec), 4 (Outer)
+    const RAIL_OFFSETS = [-1.0, -0.5, 0.0, 0.5, 1.0];
 
-    window.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseleave', handleMouseLeave);
+    // Emissive Signal Nodes (Strictly 4 across the entire Möbius)
+    const EMISSIVE_SIGNALS = [
+      { station: 12, rail: 1, label: 'SIG_01' }, // ~17% phase
+      { station: 30, rail: 4, label: 'SIG_02' }, // ~41% phase
+      { station: 49, rail: 0, label: 'SIG_03' }, // ~68% phase
+      { station: 62, rail: 3, label: 'SIG_04' }, // ~86% phase
+    ];
 
-    // Background star dust
-    interface Star {
-      x: number;
-      y: number;
-      size: number;
-      alpha: number;
-      twinkleSpeed: number;
-      twinklePhase: number;
-    }
-    const stars: Star[] = [];
-    const starCount = 120;
-    for (let i = 0; i < starCount; i++) {
-      stars.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        size: Math.random() * 1.4 + 0.4,
-        alpha: Math.random() * 0.5 + 0.15,
-        twinkleSpeed: Math.random() * 0.015 + 0.005,
-        twinklePhase: Math.random() * Math.PI * 2,
-      });
-    }
+    // Deterministic Anchor Nodes (12 structural anchors at key curvature & spine stations)
+    const ANCHOR_STATIONS = [0, 6, 18, 24, 36, 42, 54, 60];
 
-    // Parametric Infinity / Lemniscate 3D Point Mesh
-    interface Point3D {
-      u: number;
-      v: number;
-      x0: number;
-      y0: number;
-      z0: number;
-      brightness: number;
-      proximityBoost: number;
-      isAnchorNode: boolean;
-      size: number;
-    }
-
-    let points: Point3D[] = [];
-    let connections: [number, number, number][] = [];
-
-    const initPoints = () => {
-      points = [];
-      connections = [];
-      const uSteps = 96;
-      const vSteps = 6;
-
-      const scaleX = Math.min(width * 0.44, 480);
-      const scaleY = scaleX * 0.46;
-      const ribbonWidth = scaleX * 0.12;
-
-      for (let i = 0; i < uSteps; i++) {
-        const u = (i / uSteps) * Math.PI * 2;
-        const denom = 1 + Math.sin(u) * Math.sin(u);
-        const cx = (scaleX * Math.cos(u)) / denom;
-        const cy = (scaleY * Math.sin(u) * Math.cos(u)) / denom;
-
-        const du = 0.001;
-        const nextDenom = 1 + Math.sin(u + du) * Math.sin(u + du);
-        const ncx = (scaleX * Math.cos(u + du)) / nextDenom;
-        const ncy = (scaleY * Math.sin(u + du) * Math.cos(u + du)) / nextDenom;
-
-        const tx = ncx - cx;
-        const ty = ncy - cy;
-        const tLen = Math.hypot(tx, ty) || 1;
-        const nx = -ty / tLen;
-        const ny = tx / tLen;
-
-        for (let j = 0; j < vSteps; j++) {
-          const v = (j / (vSteps - 1) - 0.5) * 2;
-          const twist = u * 1.0;
-          const zDepth = Math.sin(u * 2) * (scaleX * 0.22) + Math.sin(twist) * v * (ribbonWidth * 0.8);
-          
-          const jitterX = (Math.random() - 0.5) * 5;
-          const jitterY = (Math.random() - 0.5) * 5;
-          const jitterZ = (Math.random() - 0.5) * 5;
-
-          const px = cx + nx * v * ribbonWidth * Math.cos(twist) + jitterX;
-          const py = cy + ny * v * ribbonWidth * Math.cos(twist) + Math.sin(twist) * (ribbonWidth * 0.4) + jitterY;
-          const pz = zDepth + jitterZ;
-
-          const isAnchor = (i % 8 === 0 && (j === 0 || j === vSteps - 1 || j === Math.floor(vSteps / 2))) || Math.random() < 0.07;
-
-          points.push({
-            u,
-            v,
-            x0: px,
-            y0: py,
-            z0: pz,
-            brightness: Math.random() * 0.4 + 0.6,
-            proximityBoost: 0,
-            isAnchorNode: isAnchor,
-            size: isAnchor ? (Math.random() > 0.7 ? 3.0 : 2.0) : (Math.random() * 1.0 + 0.7),
-          });
-        }
+    // Render loop
+    const render = (now: number) => {
+      if (!isVisible || width <= 0 || height <= 0) {
+        animationFrameId = requestAnimationFrame(render);
+        return;
       }
 
-      for (let i = 0; i < points.length; i++) {
-        for (let j = i + 1; j < points.length; j++) {
-          const dx = points[i].x0 - points[j].x0;
-          const dy = points[i].y0 - points[j].y0;
-          const dz = points[i].z0 - points[j].z0;
-          const dist = Math.hypot(dx, dy, dz);
-          if (dist < scaleX * 0.075) {
-            connections.push([i, j, dist]);
-          }
-        }
-      }
-    };
-
-    initPoints();
-
-    let time = 0;
-
-    const render = () => {
-      const isIdle = Date.now() - lastUserActivity > 1800;
-      const speed = prefersReducedMotion ? 0.0005 : (isIdle ? 0.002 : 0.005);
-      time += speed;
-
-      // Smooth damped parallax
-      mouseX += (targetMouseX - mouseX) * 0.03;
-      mouseY += (targetMouseY - mouseY) * 0.03;
-
+      ctx.save();
+      ctx.scale(dpr, dpr);
       ctx.clearRect(0, 0, width, height);
 
       // Deep space subtle gradient background
@@ -195,23 +141,28 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, width, height);
 
-      // Render micro-star background
-      for (let i = 0; i < stars.length; i++) {
-        const s = stars[i];
-        if (!prefersReducedMotion) {
-          s.twinklePhase += s.twinkleSpeed;
-        }
-        const currentAlpha = s.alpha * (0.6 + 0.4 * Math.sin(s.twinklePhase));
-        ctx.fillStyle = `rgba(210, 230, 255, ${currentAlpha})`;
+      // Render static, very dim background reference points
+      ctx.fillStyle = 'rgba(210, 230, 250, 0.16)';
+      for (let i = 0; i < BACKGROUND_POINTS.length; i++) {
+        const bp = BACKGROUND_POINTS[i];
+        ctx.globalAlpha = bp.alpha;
         ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.arc(bp.xRatio * width, bp.yRatio * height, 0.65, 0, Math.PI * 2);
         ctx.fill();
       }
+      ctx.globalAlpha = 1.0;
 
-      // Rotation angles
-      const rotY = Math.sin(time * 0.5) * 0.10 + mouseX * 0.4;
-      const rotX = Math.cos(time * 0.4) * 0.06 + mouseY * 0.3;
-      const rotZ = Math.sin(time * 0.2) * 0.02;
+      // Scale dimensions
+      const scaleX = Math.min(width * 0.42, 450);
+      const scaleY = scaleX * 0.44;
+      const ribbonWidth = scaleX * 0.115;
+      const zCrossingOffset = scaleX * 0.22; // Explicit front/back crossing Z-separation (delta ~120px)
+
+      // Autonomous Multi-Frequency Harmonic Orientation (Decoupled, Rigid Body)
+      const t = prefersReducedMotion ? 0 : now;
+      const rotY = prefersReducedMotion ? 0.04 : Math.sin((t * 2 * Math.PI) / 32000) * 0.10; // ±5.7°, 32s period
+      const rotX = prefersReducedMotion ? 0.02 : Math.cos((t * 2 * Math.PI) / 42000) * 0.045; // ±2.6°, 42s period
+      const rotZ = prefersReducedMotion ? 0 : Math.sin((t * 2 * Math.PI) / 72000) * 0.022; // ±1.3°, 72s period
 
       const cosY = Math.cos(rotY);
       const sinY = Math.sin(rotY);
@@ -220,139 +171,380 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
       const cosZ = Math.cos(rotZ);
       const sinZ = Math.sin(rotZ);
 
-      const centerX = width / 2;
-      const centerY = height / 2;
-      const cameraZ = 800;
+      // 3D Point transformation & projection helper
+      const transformPoint = (p: Vec3): { sx: number; sy: number; sz: number; depthScale: number } => {
+        // Rotate Y
+        const x1 = p.x * cosY + p.z * sinY;
+        const z1 = -p.x * sinY + p.z * cosY;
+        // Rotate X
+        const y2 = p.y * cosX - z1 * sinX;
+        const z2 = p.y * sinX + z1 * cosX;
+        // Rotate Z
+        const x3 = x1 * cosZ - y2 * sinZ;
+        const y3 = x1 * sinZ + y2 * cosZ;
+        const z3 = z2;
 
-      // Project points to 2D screen
-      const projected: { x: number; y: number; z: number; scale: number; alpha: number; isAnchor: boolean; size: number; p: Point3D }[] = [];
+        const cameraZ = 850;
+        const depthScale = cameraZ / (cameraZ + z3);
+        const sx = width / 2 + x3 * depthScale;
+        const sy = height / 2 + y3 * depthScale;
 
-      for (let i = 0; i < points.length; i++) {
-        const p = points[i];
-        const wave = Math.sin(p.u * 3 + time * 1.5) * 2.5;
-        let px = p.x0;
-        let py = p.y0 + wave;
-        let pz = p.z0;
+        return { sx, sy, sz: z3, depthScale };
+      };
 
-        let x1 = px * cosY + pz * sinY;
-        let z1 = -px * sinY + pz * cosY;
+      // 3D Vector transformation (for lighting normals)
+      const transformVector = (v: Vec3): Vec3 => {
+        const x1 = v.x * cosY + v.z * sinY;
+        const z1 = -v.x * sinY + v.z * cosY;
+        const y2 = v.y * cosX - z1 * sinX;
+        const z2 = v.y * sinX + z1 * cosX;
+        const x3 = x1 * cosZ - y2 * sinZ;
+        const y3 = x1 * sinZ + y2 * cosZ;
+        return normalize({ x: x3, y: y3, z: z2 });
+      };
 
-        let y2 = py * cosX - z1 * sinX;
-        let z2 = py * sinX + z1 * cosX;
+      // Precalculate Station Geometry along the Lemniscate
+      interface StationData {
+        center: Vec3;
+        tangent: Vec3;
+        ribbonCross: Vec3;
+        surfaceNormal: Vec3;
+        rotNormal: Vec3;
+        lightIntensity: number;
+        points: Vec3[]; // 5 rails
+        projPoints: { sx: number; sy: number; sz: number; depthScale: number }[];
+      }
 
-        let x3 = x1 * cosZ - y2 * sinZ;
-        let y3 = x1 * sinZ + y2 * cosZ;
-        let z3 = z2;
+      const stations: StationData[] = [];
 
-        const depth = cameraZ / (cameraZ + z3);
-        const sx = centerX + x3 * depth;
-        const sy = centerY + y3 * depth;
+      for (let i = 0; i < STATIONS; i++) {
+        const u = (i / STATIONS) * Math.PI * 2;
+        const denom = 1 + Math.sin(u) * Math.sin(u);
+        const cx = (scaleX * Math.cos(u)) / denom;
+        const cy = (scaleY * Math.sin(u) * Math.cos(u)) / denom;
+        // Explicit Front / Back Z-depth at infinity center crossing
+        const cz = Math.sin(u) * zCrossingOffset;
 
-        // Proximity detection to mouse
-        if (rawMouseX > 0 && rawMouseY > 0) {
-          const distToMouse = Math.hypot(sx - rawMouseX, sy - rawMouseY);
-          if (distToMouse < 130) {
-            const boost = (1 - distToMouse / 130) * 0.6;
-            p.proximityBoost = Math.max(p.proximityBoost, boost);
-          }
+        // Tangent approximation
+        const du = 0.001;
+        const nextDenom = 1 + Math.sin(u + du) * Math.sin(u + du);
+        const ncx = (scaleX * Math.cos(u + du)) / nextDenom;
+        const ncy = (scaleY * Math.sin(u + du) * Math.cos(u + du)) / nextDenom;
+        const ncz = Math.sin(u + du) * zCrossingOffset;
+
+        const tangent = normalize({ x: ncx - cx, y: ncy - cy, z: ncz - cz });
+
+        // Reference frame for ribbon
+        const up: Vec3 = { x: 0, y: 0, z: 1 };
+        let inPlaneNormal = cross(up, tangent);
+        if (Math.hypot(inPlaneNormal.x, inPlaneNormal.y, inPlaneNormal.z) < 0.01) {
+          inPlaneNormal = { x: 0, y: 1, z: 0 };
         }
-        p.proximityBoost *= 0.94; // Decay slowly
+        inPlaneNormal = normalize(inPlaneNormal);
+        const binormal = normalize(cross(tangent, inPlaneNormal));
 
-        const baseAlpha = Math.max(0.08, Math.min(0.92, (z3 + 300) / 600));
-        const alpha = Math.min(1.0, baseAlpha + p.proximityBoost);
+        // True 180° Half Twist (twist = u / 2)
+        const halfTwist = u / 2;
+        const cosT = Math.cos(halfTwist);
+        const sinT = Math.sin(halfTwist);
 
-        projected.push({
-          x: sx,
-          y: sy,
-          z: z3,
-          scale: depth,
-          alpha,
-          isAnchor: p.isAnchorNode,
-          size: (p.size + p.proximityBoost * 1.2) * depth,
-          p,
+        const ribbonCross = normalize({
+          x: inPlaneNormal.x * cosT + binormal.x * sinT,
+          y: inPlaneNormal.y * cosT + binormal.y * sinT,
+          z: inPlaneNormal.z * cosT + binormal.z * sinT,
+        });
+
+        const surfaceNormal = normalize({
+          x: -inPlaneNormal.x * sinT + binormal.x * cosT,
+          y: -inPlaneNormal.y * sinT + binormal.y * cosT,
+          z: -inPlaneNormal.z * sinT + binormal.z * cosT,
+        });
+
+        // Compute 5 rail points
+        const railPoints: Vec3[] = [];
+        const projPoints: { sx: number; sy: number; sz: number; depthScale: number }[] = [];
+
+        for (let k = 0; k < RAILS; k++) {
+          const v = RAIL_OFFSETS[k] * ribbonWidth;
+          const p: Vec3 = {
+            x: cx + ribbonCross.x * v,
+            y: cy + ribbonCross.y * v,
+            z: cz + ribbonCross.z * v,
+          };
+          railPoints.push(p);
+          projPoints.push(transformPoint(p));
+        }
+
+        const rotNormal = transformVector(surfaceNormal);
+
+        // Fixed environmental lighting calculation
+        const dotKey = Math.max(0, dot(rotNormal, KEY_LIGHT_DIR));
+        const dotFill = Math.max(0, dot(rotNormal, FILL_LIGHT_DIR));
+        const diffuse = dotKey * 0.8 + dotFill * 0.2;
+
+        // Subtle specular highlight
+        const refKey = normalize({
+          x: 2 * dotKey * rotNormal.x - KEY_LIGHT_DIR.x,
+          y: 2 * dotKey * rotNormal.y - KEY_LIGHT_DIR.y,
+          z: 2 * dotKey * rotNormal.z - KEY_LIGHT_DIR.z,
+        });
+        const spec = Math.pow(Math.max(0, dot(refKey, CAM_DIR)), 12) * 0.35;
+        const lightIntensity = Math.min(1.0, 0.22 + diffuse * 0.62 + spec);
+
+        stations.push({
+          center: { x: cx, y: cy, z: cz },
+          tangent,
+          ribbonCross,
+          surfaceNormal,
+          rotNormal,
+          lightIntensity,
+          points: railPoints,
+          projPoints,
         });
       }
 
-      // Draw structural wireframe connection lines
-      ctx.lineWidth = 0.5;
-      for (let k = 0; k < connections.length; k++) {
-        const [i, j] = connections[k];
-        const p1 = projected[i];
-        const p2 = projected[j];
-        if (!p1 || !p2) continue;
+      // Drawing Element Items with Depth Sorting (Back to Front)
+      interface RenderItem {
+        zDepth: number;
+        draw: () => void;
+      }
+      const renderItems: RenderItem[] = [];
 
-        const avgAlpha = (p1.alpha + p2.alpha) * 0.5;
-        const hasBoost = (p1.p.proximityBoost + p2.p.proximityBoost) > 0.15;
-        
-        if (hasBoost) {
-          ctx.strokeStyle = `rgba(148, 187, 201, ${avgAlpha * 0.45})`;
-          ctx.lineWidth = 0.8;
-        } else {
-          ctx.strokeStyle = `rgba(147, 197, 253, ${avgAlpha * 0.18})`;
-          ctx.lineWidth = 0.5;
+      // 1. Longitudinal Rails (5 structural rails)
+      for (let k = 0; k < RAILS; k++) {
+        const isCenterSpine = k === 2;
+        const isOuter = k === 0 || k === 4;
+
+        for (let i = 0; i < STATIONS; i++) {
+          const nextI = (i + 1) % STATIONS;
+          // When closing seam at i = STATIONS - 1, connect to half-twist mapped rail (RAILS - 1 - k)
+          const targetRail = i === STATIONS - 1 ? RAILS - 1 - k : k;
+
+          const p1 = stations[i].projPoints[k];
+          const p2 = stations[nextI].projPoints[targetRail];
+          const avgZ = (p1.sz + p2.sz) * 0.5;
+          const avgLight = (stations[i].lightIntensity + stations[nextI].lightIntensity) * 0.5;
+          const depthAlpha = Math.max(0.2, Math.min(0.95, (avgZ + 160) / 320));
+
+          // Base line width & color per rail tier
+          let baseWidth = isCenterSpine ? 0.8 : isOuter ? 0.65 : 0.48;
+          baseWidth *= p1.depthScale;
+
+          renderItems.push({
+            zDepth: avgZ,
+            draw: () => {
+              // Front occlusion understroke to cleanly separate crossing layers
+              if (avgZ > 0) {
+                ctx.strokeStyle = 'rgba(10, 11, 11, 0.9)';
+                ctx.lineWidth = baseWidth + 1.2;
+                ctx.beginPath();
+                ctx.moveTo(p1.sx, p1.sy);
+                ctx.lineTo(p2.sx, p2.sy);
+                ctx.stroke();
+              }
+
+              // Silver/Graphite Rail stroke
+              const r = Math.round(155 + avgLight * 75);
+              const g = Math.round(180 + avgLight * 65);
+              const b = Math.round(205 + avgLight * 50);
+              const alpha = depthAlpha * (0.35 + avgLight * 0.65);
+
+              ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+              ctx.lineWidth = baseWidth;
+              ctx.beginPath();
+              ctx.moveTo(p1.sx, p1.sy);
+              ctx.lineTo(p2.sx, p2.sy);
+              ctx.stroke();
+            },
+          });
         }
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.stroke();
       }
 
-      // Draw nodes and bright star anchors
-      for (let i = 0; i < projected.length; i++) {
-        const pt = projected[i];
-        const a = pt.alpha;
+      // 2. Transverse Ribs (24 groups, every 3 stations)
+      for (let i = 0; i < STATIONS; i += 3) {
+        const st = stations[i];
+        const avgZ = st.projPoints[2].sz;
+        const depthAlpha = Math.max(0.18, Math.min(0.85, (avgZ + 160) / 320));
+        const light = st.lightIntensity;
 
-        if (pt.isAnchor) {
-          const glowGrad = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 3.5);
-          glowGrad.addColorStop(0, `rgba(224, 242, 254, ${a * 0.85})`);
-          glowGrad.addColorStop(0.3, `rgba(56, 189, 248, ${a * 0.35})`);
-          glowGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
-          ctx.fillStyle = glowGrad;
-          ctx.beginPath();
-          ctx.arc(pt.x, pt.y, pt.size * 3.5, 0, Math.PI * 2);
-          ctx.fill();
+        renderItems.push({
+          zDepth: avgZ - 0.5,
+          draw: () => {
+            const r = Math.round(135 + light * 70);
+            const g = Math.round(160 + light * 60);
+            const b = Math.round(185 + light * 50);
+            const alpha = depthAlpha * (0.22 + light * 0.48);
 
-          ctx.fillStyle = `rgba(255, 255, 255, ${a * 0.95})`;
-          ctx.beginPath();
-          ctx.arc(pt.x, pt.y, pt.size * 0.85, 0, Math.PI * 2);
-          ctx.fill();
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            ctx.lineWidth = 0.45 * st.projPoints[2].depthScale;
 
-          if (pt.size > 2.2) {
-            ctx.strokeStyle = `rgba(240, 249, 255, ${a * 0.4})`;
-            ctx.lineWidth = 0.5;
-            const rayLen = pt.size * 3;
+            // Connect Rail 0 -> 1 -> 2 -> 3 -> 4
             ctx.beginPath();
-            ctx.moveTo(pt.x - rayLen, pt.y);
-            ctx.lineTo(pt.x + rayLen, pt.y);
-            ctx.moveTo(pt.x, pt.y - rayLen);
-            ctx.lineTo(pt.x, pt.y + rayLen);
+            ctx.moveTo(st.projPoints[0].sx, st.projPoints[0].sy);
+            for (let k = 1; k < RAILS; k++) {
+              ctx.lineTo(st.projPoints[k].sx, st.projPoints[k].sy);
+            }
             ctx.stroke();
-          }
-        } else {
-          ctx.fillStyle = `rgba(186, 230, 253, ${a * 0.5})`;
-          ctx.beginPath();
-          ctx.arc(pt.x, pt.y, pt.size * 0.65, 0, Math.PI * 2);
-          ctx.fill();
+          },
+        });
+      }
+
+      // 3. Diagonal Braces (12 deterministic structural truss braces in alternating rhythm)
+      for (let m = 0; m < 12; m++) {
+        const i1 = (m * 6) % STATIONS;
+        const i2 = (i1 + 3) % STATIONS;
+        const isLeftLean = m % 2 === 0;
+
+        const railStart1 = isLeftLean ? 0 : 4;
+        const railEnd1 = 2;
+        const railStart2 = 2;
+        const railEnd2 = isLeftLean ? 4 : 0;
+
+        const pA1 = stations[i1].projPoints[railStart1];
+        const pA2 = stations[i2].projPoints[railEnd1];
+        const pB1 = stations[i1].projPoints[railStart2];
+        const pB2 = stations[i2].projPoints[railEnd2];
+
+        const avgZ = (pA1.sz + pA2.sz + pB1.sz + pB2.sz) * 0.25;
+        const depthAlpha = Math.max(0.12, Math.min(0.65, (avgZ + 160) / 320));
+
+        renderItems.push({
+          zDepth: avgZ - 1.0,
+          draw: () => {
+            ctx.strokeStyle = `rgba(148, 175, 195, ${depthAlpha * 0.28})`;
+            ctx.lineWidth = 0.35 * pA1.depthScale;
+
+            ctx.beginPath();
+            ctx.moveTo(pA1.sx, pA1.sy);
+            ctx.lineTo(pA2.sx, pA2.sy);
+            ctx.moveTo(pB1.sx, pB1.sy);
+            ctx.lineTo(pB2.sx, pB2.sy);
+            ctx.stroke();
+          },
+        });
+      }
+
+      // 4. Micro Structural Joints (35-45 tiny joints at transverse intersections)
+      for (let i = 0; i < STATIONS; i += 3) {
+        const st = stations[i];
+        // Draw micro joint on rails 1, 2, 3
+        for (let k = 1; k <= 3; k++) {
+          const pt = st.projPoints[k];
+          const depthAlpha = Math.max(0.15, Math.min(0.8, (pt.sz + 160) / 320));
+
+          renderItems.push({
+            zDepth: pt.sz + 1.0,
+            draw: () => {
+              ctx.fillStyle = `rgba(165, 185, 205, ${depthAlpha * 0.5})`;
+              ctx.beginPath();
+              ctx.arc(pt.sx, pt.sy, 0.65 * pt.depthScale, 0, Math.PI * 2);
+              ctx.fill();
+            },
+          });
         }
       }
 
+      // 5. Deterministic Anchor Nodes (12 structural anchors at key stations)
+      for (let idx = 0; idx < ANCHOR_STATIONS.length; idx++) {
+        const stIdx = ANCHOR_STATIONS[idx];
+        const st = stations[stIdx];
+        const pt = st.projPoints[2]; // Center rail spine
+        const depthAlpha = Math.max(0.25, Math.min(0.95, (pt.sz + 160) / 320));
+        const light = st.lightIntensity;
+
+        renderItems.push({
+          zDepth: pt.sz + 2.0,
+          draw: () => {
+            // Anchor receiving environmental light (no heavy glow)
+            const r = Math.round(180 + light * 75);
+            const g = Math.round(200 + light * 55);
+            const b = Math.round(220 + light * 35);
+
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${depthAlpha * (0.5 + light * 0.5)})`;
+            ctx.beginPath();
+            ctx.arc(pt.sx, pt.sy, 1.25 * pt.depthScale, 0, Math.PI * 2);
+            ctx.fill();
+          },
+        });
+      }
+
+      // 6. Emissive Signal Nodes (Strictly 4 across the whole structure)
+      for (let s = 0; s < EMISSIVE_SIGNALS.length; s++) {
+        const sig = EMISSIVE_SIGNALS[s];
+        const st = stations[sig.station];
+        const pt = st.projPoints[sig.rail];
+        const depthAlpha = Math.max(0.3, Math.min(1.0, (pt.sz + 160) / 320));
+
+        renderItems.push({
+          zDepth: pt.sz + 5.0,
+          draw: () => {
+            const baseSize = 1.6 * pt.depthScale;
+            // Delicate cold halo
+            const glow = ctx.createRadialGradient(
+              pt.sx,
+              pt.sy,
+              0,
+              pt.sx,
+              pt.sy,
+              baseSize * 4.2
+            );
+            glow.addColorStop(0, `rgba(224, 242, 254, ${depthAlpha * 0.65})`);
+            glow.addColorStop(0.35, `rgba(147, 197, 253, ${depthAlpha * 0.22})`);
+            glow.addColorStop(1, 'rgba(147, 197, 253, 0)');
+
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(pt.sx, pt.sy, baseSize * 4.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Core bright white dot
+            ctx.fillStyle = `rgba(255, 255, 255, ${depthAlpha * 0.95})`;
+            ctx.beginPath();
+            ctx.arc(pt.sx, pt.sy, baseSize * 0.9, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Fine reticle micro-crosshair
+            ctx.strokeStyle = `rgba(224, 242, 254, ${depthAlpha * 0.45})`;
+            ctx.lineWidth = 0.5;
+            const arm = baseSize * 2.8;
+            ctx.beginPath();
+            ctx.moveTo(pt.sx - arm, pt.sy);
+            ctx.lineTo(pt.sx + arm, pt.sy);
+            ctx.moveTo(pt.sx, pt.sy - arm);
+            ctx.lineTo(pt.sx, pt.sy + arm);
+            ctx.stroke();
+          },
+        });
+      }
+
+      // Sort all items Back-to-Front
+      renderItems.sort((a, b) => a.zDepth - b.zDepth);
+
+      // Execute ordered draw calls
+      for (let i = 0; i < renderItems.length; i++) {
+        renderItems[i].draw();
+      }
+
+      ctx.restore();
       animationFrameId = requestAnimationFrame(render);
     };
 
-    render();
+    animationFrameId = requestAnimationFrame(render);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseleave', handleMouseLeave);
+      window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      observer.disconnect();
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
 
   return (
-    <div className={`relative w-full h-full pointer-events-none ${className}`}>
+    <div
+      ref={containerRef}
+      className={`relative w-full h-full pointer-events-none select-none ${className}`}
+    >
       <canvas ref={canvasRef} className="block w-full h-full" />
     </div>
   );
 };
-

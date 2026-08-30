@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
+import { scrollController } from '../lib/scrollController';
 
 export interface SpineSection {
   id: string;
@@ -30,6 +30,20 @@ export const SystemSpine: React.FC<SystemSpineProps> = ({
   activeSectionId,
   onSectionClick,
 }) => {
+  const [scrollProgress, setScrollProgress] = useState(0);
+
+  useEffect(() => {
+    // Initial progress
+    setScrollProgress(scrollController.getProgress());
+
+    // Continuous scroll progress subscription
+    const unsubscribe = scrollController.subscribe((prog) => {
+      setScrollProgress(prog);
+    });
+
+    return unsubscribe;
+  }, []);
+
   const activeIndex = SPINE_SECTIONS.findIndex((s) => s.id === activeSectionId);
   const currentSection = SPINE_SECTIONS[activeIndex >= 0 ? activeIndex : 0];
 
@@ -43,15 +57,24 @@ export const SystemSpine: React.FC<SystemSpineProps> = ({
 
       {/* The 1px System Spine Track with Section Notches */}
       <div className="relative w-[1px] h-64 md:h-80 bg-[#1F2937]/70 flex flex-col justify-between items-center">
-        {/* Continuous Active Trail Line */}
+        {/* Continuous Active Trail Line (Continuous Position) */}
         <div
-          className="absolute top-0 w-[1px] bg-gradient-to-b from-[#D4AF37]/80 to-[#94BBC9] transition-all duration-300 ease-out"
+          className="absolute top-0 w-[1px] bg-gradient-to-b from-[#D4AF37]/80 to-[#94BBC9]"
           style={{
-            height: `${((activeIndex >= 0 ? activeIndex : 0) / (SPINE_SECTIONS.length - 1)) * 100}%`,
+            height: `${Math.min(100, Math.max(0, scrollProgress * 100))}%`,
           }}
         />
 
-        {/* Section Notches */}
+        {/* Continuous Moving Marker (Quiet, small, no heavy glow) */}
+        <div
+          className="absolute -left-[2.5px] w-1.5 h-1.5 rounded-full bg-[#D4AF37] shadow-[0_0_6px_rgba(212,175,55,0.7)] pointer-events-none transition-transform duration-75"
+          style={{
+            top: `${Math.min(100, Math.max(0, scrollProgress * 100))}%`,
+            transform: 'translateY(-50%)',
+          }}
+        />
+
+        {/* Discrete Section Notches */}
         {SPINE_SECTIONS.map((sec, idx) => {
           const isActive = sec.id === activeSectionId;
           const isPassed = idx < activeIndex;
@@ -66,15 +89,15 @@ export const SystemSpine: React.FC<SystemSpineProps> = ({
               <span
                 className={`w-1 h-1 rounded-full transition-all duration-200 ${
                   isActive
-                    ? 'w-2 h-2 bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.9)]'
+                    ? 'w-1.5 h-1.5 bg-[#D4AF37]'
                     : isPassed
-                    ? 'bg-[#9CA3AF]'
-                    : 'bg-[#374151] group-hover:bg-[#6B7280]'
+                    ? 'bg-[#6B7280]'
+                    : 'bg-[#374151] group-hover:bg-[#9CA3AF]'
                 }`}
               />
 
               {/* Hover Tooltip on Spine Notch */}
-              <span className="absolute left-4 px-2 py-0.5 bg-[#0E1012] border border-[#1F2937] text-[9px] font-mono-code text-[#D1D5DB] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-xs">
+              <span className="absolute left-4 px-2 py-0.5 bg-[#0E1012] border border-[#1F2937] text-[9px] font-mono-code text-[#D1D5DB] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-xs shadow-lg">
                 {sec.number} / {sec.name}
               </span>
             </button>
@@ -85,7 +108,7 @@ export const SystemSpine: React.FC<SystemSpineProps> = ({
       {/* Bottom Anchor Marker */}
       <div className="w-1.5 h-1.5 rounded-full border border-[#4B5563] bg-[#0A0B0B] mt-2" />
 
-      {/* Active Section Label Beside Spine (Quiet Indicator) */}
+      {/* Discrete Active Section Label Beside Spine */}
       <div className="mt-4 flex items-center gap-2">
         <span className="w-1 h-1 rounded-full bg-[#D4AF37]" />
         <span className="text-[9px] tracking-[0.25em] text-[#8E9299] font-mono-code whitespace-nowrap">

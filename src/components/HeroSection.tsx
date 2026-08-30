@@ -8,8 +8,9 @@ interface HeroSectionProps {
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ onScrollClick }) => {
   const { scrollY } = useScroll();
-  const heroOpacity = useTransform(scrollY, [0, 400], [1, 0.2]);
-  const heroScale = useTransform(scrollY, [0, 400], [1, 0.96]);
+  const heroOpacity = useTransform(scrollY, [0, 380], [1, 0.15]);
+  const heroScale = useTransform(scrollY, [0, 450], [1, 0.985]);
+  const textOpacity = useTransform(scrollY, [0, 280], [1, 0.05]);
 
   return (
     <section id="section-hero" className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden pt-24 pb-16">
@@ -26,6 +27,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onScrollClick }) => {
         style={{ opacity: heroOpacity, scale: heroScale }}
         className="relative z-10 flex flex-col items-center text-center px-6 max-w-5xl mx-auto my-auto select-none"
       >
+        <motion.div style={{ opacity: textOpacity }} className="flex flex-col items-center">
         {/* Sleek Interface Axis Telemetry Coordinates */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -93,6 +95,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onScrollClick }) => {
           className="text-[10px] sm:text-xs tracking-[0.32em] text-[#6B7280] font-mono-code uppercase max-w-xl pl-[0.32em]"
         >
           LOCAL-FIRST CONTROLLED AGENTIC SOFTWARE CONSTRUCTION
+        </motion.div>
         </motion.div>
       </motion.div>
 
