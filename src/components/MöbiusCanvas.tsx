@@ -13,6 +13,8 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
     const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
     let animationFrameId: number;
     let width = (canvas.width = canvas.parentElement?.clientWidth || window.innerWidth);
     let height = (canvas.height = canvas.parentElement?.clientHeight || window.innerHeight);
@@ -26,21 +28,35 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
 
     window.addEventListener('resize', handleResize);
 
-    // Mouse parallax tracking
+    // Highly damped mouse parallax (max 4-8px)
     let mouseX = 0;
     let mouseY = 0;
     let targetMouseX = 0;
     let targetMouseY = 0;
+    let rawMouseX = -1000;
+    let rawMouseY = -1000;
+    let lastUserActivity = Date.now();
 
     const handleMouseMove = (e: MouseEvent) => {
+      lastUserActivity = Date.now();
       const rect = canvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / width - 0.5;
-      const y = (e.clientY - rect.top) / height - 0.5;
-      targetMouseX = x * 0.3;
-      targetMouseY = y * 0.3;
+      rawMouseX = e.clientX - rect.left;
+      rawMouseY = e.clientY - rect.top;
+      const x = (rawMouseX / width) - 0.5;
+      const y = (rawMouseY / height) - 0.5;
+      targetMouseX = x * 0.08; // Damped parallax
+      targetMouseY = y * 0.08;
+    };
+
+    const handleMouseLeave = () => {
+      rawMouseX = -1000;
+      rawMouseY = -1000;
+      targetMouseX = 0;
+      targetMouseY = 0;
     };
 
     window.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseleave', handleMouseLeave);
 
     // Background star dust
     interface Star {
@@ -52,38 +68,39 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
       twinklePhase: number;
     }
     const stars: Star[] = [];
-    const starCount = 140;
+    const starCount = 120;
     for (let i = 0; i < starCount; i++) {
       stars.push({
         x: Math.random() * width,
         y: Math.random() * height,
-        size: Math.random() * 1.5 + 0.5,
-        alpha: Math.random() * 0.6 + 0.2,
-        twinkleSpeed: Math.random() * 0.02 + 0.005,
+        size: Math.random() * 1.4 + 0.4,
+        alpha: Math.random() * 0.5 + 0.15,
+        twinkleSpeed: Math.random() * 0.015 + 0.005,
         twinklePhase: Math.random() * Math.PI * 2,
       });
     }
 
     // Parametric Infinity / Lemniscate 3D Point Mesh
     interface Point3D {
-      u: number; // parametric position along ribbon (0 to 2*PI)
-      v: number; // position across ribbon (-width to +width)
+      u: number;
+      v: number;
       x0: number;
       y0: number;
       z0: number;
       brightness: number;
+      proximityBoost: number;
       isAnchorNode: boolean;
       size: number;
     }
 
     let points: Point3D[] = [];
-    let connections: [number, number, number][] = []; // [p1_idx, p2_idx, max_dist]
+    let connections: [number, number, number][] = [];
 
     const initPoints = () => {
       points = [];
       connections = [];
-      const uSteps = 96; // points along the loop
-      const vSteps = 6;  // points across the tube/strip width
+      const uSteps = 96;
+      const vSteps = 6;
 
       const scaleX = Math.min(width * 0.44, 480);
       const scaleY = scaleX * 0.46;
@@ -91,12 +108,10 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
 
       for (let i = 0; i < uSteps; i++) {
         const u = (i / uSteps) * Math.PI * 2;
-        // Bernoulli Lemniscate parametric curve
         const denom = 1 + Math.sin(u) * Math.sin(u);
         const cx = (scaleX * Math.cos(u)) / denom;
         const cy = (scaleY * Math.sin(u) * Math.cos(u)) / denom;
 
-        // Tangent & Normal for ribbon width
         const du = 0.001;
         const nextDenom = 1 + Math.sin(u + du) * Math.sin(u + du);
         const ncx = (scaleX * Math.cos(u + du)) / nextDenom;
@@ -109,21 +124,19 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
         const ny = tx / tLen;
 
         for (let j = 0; j < vSteps; j++) {
-          const v = (j / (vSteps - 1) - 0.5) * 2; // -1 to 1
-          // Add twist and 3D depth
+          const v = (j / (vSteps - 1) - 0.5) * 2;
           const twist = u * 1.0;
           const zDepth = Math.sin(u * 2) * (scaleX * 0.22) + Math.sin(twist) * v * (ribbonWidth * 0.8);
           
-          // Random offset for organic constellation feeling
-          const jitterX = (Math.random() - 0.5) * 6;
-          const jitterY = (Math.random() - 0.5) * 6;
-          const jitterZ = (Math.random() - 0.5) * 6;
+          const jitterX = (Math.random() - 0.5) * 5;
+          const jitterY = (Math.random() - 0.5) * 5;
+          const jitterZ = (Math.random() - 0.5) * 5;
 
           const px = cx + nx * v * ribbonWidth * Math.cos(twist) + jitterX;
           const py = cy + ny * v * ribbonWidth * Math.cos(twist) + Math.sin(twist) * (ribbonWidth * 0.4) + jitterY;
           const pz = zDepth + jitterZ;
 
-          const isAnchor = (i % 8 === 0 && (j === 0 || j === vSteps - 1 || j === Math.floor(vSteps / 2))) || Math.random() < 0.08;
+          const isAnchor = (i % 8 === 0 && (j === 0 || j === vSteps - 1 || j === Math.floor(vSteps / 2))) || Math.random() < 0.07;
 
           points.push({
             u,
@@ -131,14 +144,14 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
             x0: px,
             y0: py,
             z0: pz,
-            brightness: Math.random() * 0.5 + 0.5,
+            brightness: Math.random() * 0.4 + 0.6,
+            proximityBoost: 0,
             isAnchorNode: isAnchor,
-            size: isAnchor ? (Math.random() > 0.7 ? 3.2 : 2.2) : (Math.random() * 1.2 + 0.8),
+            size: isAnchor ? (Math.random() > 0.7 ? 3.0 : 2.0) : (Math.random() * 1.0 + 0.7),
           });
         }
       }
 
-      // Build structural connections between nearby points
       for (let i = 0; i < points.length; i++) {
         for (let j = i + 1; j < points.length; j++) {
           const dx = points[i].x0 - points[j].x0;
@@ -157,10 +170,13 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
     let time = 0;
 
     const render = () => {
-      time += 0.006;
-      // Smooth mouse interpolation
-      mouseX += (targetMouseX - mouseX) * 0.04;
-      mouseY += (targetMouseY - mouseY) * 0.04;
+      const isIdle = Date.now() - lastUserActivity > 1800;
+      const speed = prefersReducedMotion ? 0.0005 : (isIdle ? 0.002 : 0.005);
+      time += speed;
+
+      // Smooth damped parallax
+      mouseX += (targetMouseX - mouseX) * 0.03;
+      mouseY += (targetMouseY - mouseY) * 0.03;
 
       ctx.clearRect(0, 0, width, height);
 
@@ -175,14 +191,16 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
       );
       grad.addColorStop(0, '#090D15');
       grad.addColorStop(0.5, '#06080E');
-      grad.addColorStop(1, '#030407');
+      grad.addColorStop(1, '#0A0B0B');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, width, height);
 
       // Render micro-star background
       for (let i = 0; i < stars.length; i++) {
         const s = stars[i];
-        s.twinklePhase += s.twinkleSpeed;
+        if (!prefersReducedMotion) {
+          s.twinklePhase += s.twinkleSpeed;
+        }
         const currentAlpha = s.alpha * (0.6 + 0.4 * Math.sin(s.twinklePhase));
         ctx.fillStyle = `rgba(210, 230, 255, ${currentAlpha})`;
         ctx.beginPath();
@@ -190,10 +208,10 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
         ctx.fill();
       }
 
-      // Rotation angles with subtle breathing
-      const rotY = Math.sin(time * 0.5) * 0.12 + mouseX * 0.6;
-      const rotX = Math.cos(time * 0.4) * 0.08 + mouseY * 0.4;
-      const rotZ = Math.sin(time * 0.2) * 0.03;
+      // Rotation angles
+      const rotY = Math.sin(time * 0.5) * 0.10 + mouseX * 0.4;
+      const rotX = Math.cos(time * 0.4) * 0.06 + mouseY * 0.3;
+      const rotZ = Math.sin(time * 0.2) * 0.02;
 
       const cosY = Math.cos(rotY);
       const sinY = Math.sin(rotY);
@@ -211,13 +229,11 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
 
       for (let i = 0; i < points.length; i++) {
         const p = points[i];
-        // Subtle wave perturbation along ribbon
-        const wave = Math.sin(p.u * 3 + time * 1.5) * 3;
+        const wave = Math.sin(p.u * 3 + time * 1.5) * 2.5;
         let px = p.x0;
         let py = p.y0 + wave;
         let pz = p.z0;
 
-        // Apply 3D Rotations (Y -> X -> Z)
         let x1 = px * cosY + pz * sinY;
         let z1 = -px * sinY + pz * cosY;
 
@@ -231,7 +247,19 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
         const depth = cameraZ / (cameraZ + z3);
         const sx = centerX + x3 * depth;
         const sy = centerY + y3 * depth;
-        const alpha = Math.max(0.08, Math.min(0.95, (z3 + 300) / 600));
+
+        // Proximity detection to mouse
+        if (rawMouseX > 0 && rawMouseY > 0) {
+          const distToMouse = Math.hypot(sx - rawMouseX, sy - rawMouseY);
+          if (distToMouse < 130) {
+            const boost = (1 - distToMouse / 130) * 0.6;
+            p.proximityBoost = Math.max(p.proximityBoost, boost);
+          }
+        }
+        p.proximityBoost *= 0.94; // Decay slowly
+
+        const baseAlpha = Math.max(0.08, Math.min(0.92, (z3 + 300) / 600));
+        const alpha = Math.min(1.0, baseAlpha + p.proximityBoost);
 
         projected.push({
           x: sx,
@@ -240,7 +268,7 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
           scale: depth,
           alpha,
           isAnchor: p.isAnchorNode,
-          size: p.size * depth,
+          size: (p.size + p.proximityBoost * 1.2) * depth,
           p,
         });
       }
@@ -254,8 +282,15 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
         if (!p1 || !p2) continue;
 
         const avgAlpha = (p1.alpha + p2.alpha) * 0.5;
-        // Fine ice-blue / cold silver structural lines
-        ctx.strokeStyle = `rgba(147, 197, 253, ${avgAlpha * 0.22})`;
+        const hasBoost = (p1.p.proximityBoost + p2.p.proximityBoost) > 0.15;
+        
+        if (hasBoost) {
+          ctx.strokeStyle = `rgba(148, 187, 201, ${avgAlpha * 0.45})`;
+          ctx.lineWidth = 0.8;
+        } else {
+          ctx.strokeStyle = `rgba(147, 197, 253, ${avgAlpha * 0.18})`;
+          ctx.lineWidth = 0.5;
+        }
         ctx.beginPath();
         ctx.moveTo(p1.x, p1.y);
         ctx.lineTo(p2.x, p2.y);
@@ -268,27 +303,24 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
         const a = pt.alpha;
 
         if (pt.isAnchor) {
-          // Glow halo
-          const glowGrad = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 4);
-          glowGrad.addColorStop(0, `rgba(224, 242, 254, ${a * 0.9})`);
-          glowGrad.addColorStop(0.3, `rgba(56, 189, 248, ${a * 0.4})`);
+          const glowGrad = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 3.5);
+          glowGrad.addColorStop(0, `rgba(224, 242, 254, ${a * 0.85})`);
+          glowGrad.addColorStop(0.3, `rgba(56, 189, 248, ${a * 0.35})`);
           glowGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
           ctx.fillStyle = glowGrad;
           ctx.beginPath();
-          ctx.arc(pt.x, pt.y, pt.size * 4, 0, Math.PI * 2);
+          ctx.arc(pt.x, pt.y, pt.size * 3.5, 0, Math.PI * 2);
           ctx.fill();
 
-          // Core bright star dot
           ctx.fillStyle = `rgba(255, 255, 255, ${a * 0.95})`;
           ctx.beginPath();
-          ctx.arc(pt.x, pt.y, pt.size * 0.9, 0, Math.PI * 2);
+          ctx.arc(pt.x, pt.y, pt.size * 0.85, 0, Math.PI * 2);
           ctx.fill();
 
-          // Subtle 4-point star ray for selected anchor nodes
-          if (pt.size > 2.5) {
-            ctx.strokeStyle = `rgba(240, 249, 255, ${a * 0.45})`;
-            ctx.lineWidth = 0.6;
-            const rayLen = pt.size * 3.5;
+          if (pt.size > 2.2) {
+            ctx.strokeStyle = `rgba(240, 249, 255, ${a * 0.4})`;
+            ctx.lineWidth = 0.5;
+            const rayLen = pt.size * 3;
             ctx.beginPath();
             ctx.moveTo(pt.x - rayLen, pt.y);
             ctx.lineTo(pt.x + rayLen, pt.y);
@@ -297,10 +329,9 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
             ctx.stroke();
           }
         } else {
-          // Standard node dot
-          ctx.fillStyle = `rgba(186, 230, 253, ${a * 0.55})`;
+          ctx.fillStyle = `rgba(186, 230, 253, ${a * 0.5})`;
           ctx.beginPath();
-          ctx.arc(pt.x, pt.y, pt.size * 0.7, 0, Math.PI * 2);
+          ctx.arc(pt.x, pt.y, pt.size * 0.65, 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -313,6 +344,7 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseleave', handleMouseLeave);
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
@@ -323,3 +355,4 @@ export const MöbiusCanvas: React.FC<MöbiusCanvasProps> = ({ className = '' }) 
     </div>
   );
 };
+

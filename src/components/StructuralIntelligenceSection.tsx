@@ -50,14 +50,18 @@ export const StructuralIntelligenceSection: React.FC = () => {
               <button
                 key={tab.id}
                 onClick={() => setProjection(tab.id as ProjectionType)}
-                className={`px-4 py-2.5 text-left border rounded-xs font-mono-code transition-all duration-200 ${
+                className={`px-4 py-2.5 text-left border rounded-xs font-mono-code mech-btn transition-all duration-200 ${
                   isSelected
-                    ? 'border-[#D4AF37]/80 bg-[#161920] shadow-[0_0_15px_rgba(212,175,55,0.12)]'
-                    : 'border-[#1F2937] bg-[#0A0C0E] hover:border-[#374151]'
+                    ? 'border-[#D4AF37] bg-[#161920] shadow-[0_0_15px_rgba(212,175,55,0.12)]'
+                    : 'border-[#1F2937] bg-[#0A0C0E] hover:border-[#4B5563] hover:bg-[#121418]'
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-[#D4AF37]' : 'bg-[#4B5563]'}`} />
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full transition-all duration-200 mech-dot ${
+                      isSelected ? 'bg-[#D4AF37] scale-125' : 'bg-[#4B5563]'
+                    }`}
+                  />
                   <span className={`text-xs tracking-wider ${isSelected ? 'text-white font-medium' : 'text-[#8E9299]'}`}>
                     {tab.label}
                   </span>

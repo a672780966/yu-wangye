@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { NodeAttribute } from '../types';
 
 const NODE_ATTRIBUTES: NodeAttribute[] = [
@@ -130,17 +130,17 @@ export const ControlledNodeSection: React.FC = () => {
                   <button
                     key={attr.id}
                     onClick={() => setSelectedAttr(attr)}
-                    className={`p-3 text-left transition-all duration-200 border rounded-xs ${
+                    className={`p-3 text-left transition-all duration-200 border rounded-xs mech-btn ${
                       isSelected
-                        ? 'border-[#D4AF37]/70 bg-[#171A20] shadow-[0_0_12px_rgba(212,175,55,0.1)]'
-                        : 'border-[#1F2937] bg-[#0A0C0E] hover:border-[#374151] hover:bg-[#121418]'
+                        ? 'border-[#D4AF37] bg-[#171A20] shadow-[0_0_12px_rgba(212,175,55,0.1)]'
+                        : 'border-[#1F2937] bg-[#0A0C0E] hover:border-[#4B5563] hover:bg-[#121418]'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-[9px] font-mono-code text-[#6B7280]">{attr.zhLabel}</span>
                       <span
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          isSelected ? 'bg-[#D4AF37]' : 'bg-[#4B5563]'
+                        className={`w-1.5 h-1.5 rounded-full transition-all duration-200 mech-dot ${
+                          isSelected ? 'bg-[#D4AF37] scale-125' : 'bg-[#4B5563]'
                         }`}
                       />
                     </div>
@@ -159,34 +159,46 @@ export const ControlledNodeSection: React.FC = () => {
 
           {/* Right Attribute Inspector Pane */}
           <div className="lg:col-span-5 p-6 md:p-8 border border-[#1F2937] bg-[#0E1012] rounded-xs space-y-4 shadow-xl">
-            <div className="flex items-center justify-between border-b border-[#1F2937] pb-3">
-              <div>
-                <span className="text-[10px] font-mono-code tracking-[0.2em] text-[#8E9299] uppercase">
-                  {selectedAttr.badge}
-                </span>
-                <h4 className="font-mono-code text-base text-white font-medium tracking-wider mt-0.5">
-                  {selectedAttr.name} · {selectedAttr.zhLabel}
-                </h4>
-              </div>
-              <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.8)]" />
-            </div>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={selectedAttr.id}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center justify-between border-b border-[#1F2937] pb-3">
+                  <div>
+                    <span className="text-[10px] font-mono-code tracking-[0.2em] text-[#8E9299] uppercase">
+                      {selectedAttr.badge}
+                    </span>
+                    <h4 className="font-mono-code text-base text-white font-medium tracking-wider mt-0.5">
+                      {selectedAttr.name} · {selectedAttr.zhLabel}
+                    </h4>
+                  </div>
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.8)]" />
+                </div>
 
-            <p className="text-xs md:text-sm text-[#D1D5DB] font-light leading-relaxed">
-              {selectedAttr.description}
-            </p>
+                <p className="text-xs md:text-sm text-[#D1D5DB] font-light leading-relaxed">
+                  {selectedAttr.description}
+                </p>
 
-            {/* Code / Invariant Contract Display */}
-            <div className="space-y-1.5">
-              <div className="text-[10px] font-mono-code tracking-widest text-[#6B7280]">
-                SCHEMA INVARIANT:
-              </div>
-              <pre className="p-3.5 bg-[#060708] border border-[#1F2937] rounded-xs text-[11px] font-mono-code text-[#94BBC9] leading-relaxed overflow-x-auto">
-                <code>{selectedAttr.codeSnippet}</code>
-              </pre>
-            </div>
+                {/* Code / Invariant Contract Display */}
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-mono-code tracking-widest text-[#6B7280]">
+                    SCHEMA INVARIANT:
+                  </div>
+                  <pre className="p-3.5 bg-[#060708] border border-[#1F2937] rounded-xs text-[11px] font-mono-code text-[#94BBC9] leading-relaxed overflow-x-auto">
+                    <code>{selectedAttr.codeSnippet}</code>
+                  </pre>
+                </div>
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
       </div>
     </section>
   );
 };
+

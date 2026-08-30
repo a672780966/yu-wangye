@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion, useScroll, useTransform } from 'motion/react';
 import { MöbiusCanvas } from './MöbiusCanvas';
 
 interface HeroSectionProps {
@@ -7,8 +7,12 @@ interface HeroSectionProps {
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ onScrollClick }) => {
+  const { scrollY } = useScroll();
+  const heroOpacity = useTransform(scrollY, [0, 400], [1, 0.2]);
+  const heroScale = useTransform(scrollY, [0, 400], [1, 0.96]);
+
   return (
-    <section className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden pt-24 pb-16">
+    <section id="section-hero" className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden pt-24 pb-16">
       {/* Background Parametric Infinity Mesh Canvas */}
       <div className="absolute inset-0 z-0 opacity-80">
         <MöbiusCanvas />
@@ -17,8 +21,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onScrollClick }) => {
       {/* Sleek Interface space gradient overlay */}
       <div className="absolute inset-0 z-1 pointer-events-none bg-radial from-transparent via-[#0A0B0B]/40 to-[#0A0B0B]" />
 
-      {/* Main Hero Content */}
-      <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-5xl mx-auto my-auto select-none">
+      {/* Main Hero Content with Scroll Continuity */}
+      <motion.div
+        style={{ opacity: heroOpacity, scale: heroScale }}
+        className="relative z-10 flex flex-col items-center text-center px-6 max-w-5xl mx-auto my-auto select-none"
+      >
         {/* Sleek Interface Axis Telemetry Coordinates */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -87,14 +94,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onScrollClick }) => {
         >
           LOCAL-FIRST CONTROLLED AGENTIC SOFTWARE CONSTRUCTION
         </motion.div>
-      </div>
+      </motion.div>
 
-      {/* Bottom Scroll Indicator */}
+      {/* Bottom Scroll Indicator - Connects to System Spine */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1, delay: 1 }}
-        className="relative z-10 mt-auto flex flex-col items-center cursor-pointer group"
+        className="relative z-10 mt-auto flex flex-col items-center cursor-pointer group mech-btn"
         onClick={onScrollClick}
       >
         <span className="text-[9px] tracking-[0.4em] text-[#6B7280] font-mono-code group-hover:text-white transition-colors pl-[0.4em] mb-3">
@@ -104,11 +111,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onScrollClick }) => {
           <motion.div
             animate={{ y: [0, 24, 0] }}
             transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-            className="w-1 h-1 rounded-full bg-[#D4AF37] shadow-[0_0_6px_rgba(212,175,55,0.9)]"
+            className="w-1 h-1 rounded-full bg-[#D4AF37] shadow-[0_0_6px_rgba(212,175,55,0.9)] mech-dot"
           />
         </div>
       </motion.div>
     </section>
   );
 };
+
 

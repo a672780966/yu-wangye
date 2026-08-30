@@ -9,7 +9,7 @@ interface FinalCTAProps {
 
 export const FinalCTA: React.FC<FinalCTAProps> = ({ onEnterClick, onExploreClick }) => {
   return (
-    <section className="relative w-full py-36 px-6 md:px-16 flex flex-col items-center justify-center border-t border-[#1F2937]/50 bg-[#0A0B0B] overflow-hidden">
+    <section id="section-cta" className="relative w-full py-36 px-6 md:px-16 flex flex-col items-center justify-center border-t border-[#1F2937]/50 bg-[#0A0B0B] overflow-hidden">
       {/* Background Subtle Grid */}
       <div className="absolute inset-0 pointer-events-none opacity-10">
         <div className="w-full h-full sleek-grid-bg" />
@@ -69,17 +69,17 @@ export const FinalCTA: React.FC<FinalCTAProps> = ({ onEnterClick, onExploreClick
           <button
             id="cta-enter-yu-btn"
             onClick={onEnterClick}
-            className="flex items-center gap-3 px-8 py-3.5 border border-[#374151] bg-[#121418] hover:bg-[#1C2026] hover:border-[#4B5563] text-xs sm:text-sm tracking-[0.25em] text-white font-mono-code rounded-xs transition-all duration-300 shadow-xl group"
+            className="flex items-center gap-3 px-8 py-3.5 border border-[#374151] bg-[#121418] hover:bg-[#1C2026] hover:border-[#4B5563] text-xs sm:text-sm tracking-[0.25em] text-white font-mono-code rounded-xs transition-all duration-200 shadow-xl group mech-btn"
           >
             <span>ENTER YU</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.9)] group-hover:scale-125 transition-transform" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.9)] group-hover:scale-125 transition-transform mech-dot" />
           </button>
 
           {/* Secondary Low-Tier CTA: EXPLORE THE SYSTEM */}
           <button
             id="cta-explore-system-btn"
             onClick={onExploreClick}
-            className="flex items-center gap-2 px-6 py-3.5 text-xs sm:text-sm tracking-[0.25em] text-[#8E9299] hover:text-white font-mono-code transition-colors duration-300"
+            className="flex items-center gap-2 px-6 py-3.5 text-xs sm:text-sm tracking-[0.25em] text-[#8E9299] hover:text-white font-mono-code transition-colors duration-200 mech-btn"
           >
             <span>EXPLORE THE SYSTEM</span>
             <ArrowUpRight className="w-4 h-4 text-[#6B7280]" />

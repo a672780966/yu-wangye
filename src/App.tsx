@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
 import { ProblemSection } from './components/ProblemSection';
@@ -12,9 +12,11 @@ import { ArchitectureSection } from './components/ArchitectureSection';
 import { PromiseSection } from './components/PromiseSection';
 import { FinalCTA } from './components/FinalCTA';
 import { EnterModal } from './components/EnterModal';
+import { SystemSpine, SPINE_SECTIONS } from './components/SystemSpine';
 
 export default function App() {
   const [isEnterModalOpen, setIsEnterModalOpen] = useState(false);
+  const [activeSectionId, setActiveSectionId] = useState<string>('section-hero');
 
   const scrollToSection = (sectionId: string) => {
     const el = document.getElementById(sectionId);
@@ -22,6 +24,29 @@ export default function App() {
       el.scrollIntoView({ behavior: 'smooth' });
     }
   };
+
+  useEffect(() => {
+    const observerCallback: IntersectionObserverCallback = (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          setActiveSectionId(entry.target.id);
+        }
+      });
+    };
+
+    const observer = new IntersectionObserver(observerCallback, {
+      root: null,
+      rootMargin: '-30% 0px -40% 0px',
+      threshold: 0,
+    });
+
+    SPINE_SECTIONS.forEach((sec) => {
+      const el = document.getElementById(sec.id);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <main className="relative min-h-screen bg-[#0A0B0B] text-[#D1D5DB] selection:bg-[#D4AF37]/20 selection:text-[#F3F4F6] overflow-hidden">
@@ -41,18 +66,11 @@ export default function App() {
         </svg>
       </div>
 
-      {/* Sleek Interface Fixed Left HUD Aside */}
-      <aside className="fixed left-6 md:left-10 top-1/2 -translate-y-1/2 hidden xl:flex flex-col gap-6 z-30 pointer-events-none select-none">
-        <div className="flex flex-col gap-2">
-          <div className="w-[1px] h-28 bg-gradient-to-b from-transparent via-[#4B5563] to-transparent ml-[3px]" />
-          <div className="flex items-center gap-3">
-            <div className="w-1.5 h-1.5 rounded-full border border-[#4B5563] bg-transparent" />
-            <span className="text-[9px] tracking-[0.25em] text-[#6B7280] font-mono-code rotate-[-90deg] origin-left translate-x-2 whitespace-nowrap">
-              STATUS: GOVERNED
-            </span>
-          </div>
-        </div>
-      </aside>
+      {/* Left System Structural Spine Navigator */}
+      <SystemSpine
+        activeSectionId={activeSectionId}
+        onSectionClick={scrollToSection}
+      />
 
       {/* Relative Content Container */}
       <div className="relative z-10">

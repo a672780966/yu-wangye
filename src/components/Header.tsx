@@ -1,23 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, ExternalLink, ShieldCheck, Terminal, Cpu, FileCode2, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
+import { X } from 'lucide-react';
+import { SPINE_SECTIONS } from './SystemSpine';
 
 interface HeaderProps {
   onEnterClick: () => void;
+  activeSectionId?: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onEnterClick }) => {
+export const Header: React.FC<HeaderProps> = ({ onEnterClick, activeSectionId = 'section-hero' }) => {
   const [activeModal, setActiveModal] = useState<'MANIFESTO' | 'SYSTEM' | 'RESEARCH' | null>(null);
+  const [isCompact, setIsCompact] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsCompact(window.scrollY > 80);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const currentSec = SPINE_SECTIONS.find((s) => s.id === activeSectionId) || SPINE_SECTIONS[0];
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-40 px-6 sm:px-12 py-8 flex items-center justify-between pointer-events-auto backdrop-blur-[4px] border-b border-[#1F2937]/30">
+      <header
+        className={`fixed top-0 left-0 right-0 z-40 px-6 sm:px-12 flex items-center justify-between pointer-events-auto transition-all duration-300 ${
+          isCompact
+            ? 'py-4 bg-[#0A0B0B]/80 backdrop-blur-md border-b border-[#1F2937]/40 shadow-lg'
+            : 'py-8 bg-transparent border-b border-transparent'
+        }`}
+      >
         {/* Left Navigation in Sleek Interface Design */}
-        <nav className="flex items-center gap-8 sm:gap-12 text-[10px] sm:text-[11px] tracking-[0.25em] font-medium text-[#8E9299] font-sans">
+        <nav className="flex items-center gap-6 sm:gap-10 text-[10px] sm:text-[11px] tracking-[0.25em] font-medium text-[#8E9299] font-sans">
           <button
             id="nav-manifesto-btn"
             onClick={() => setActiveModal('MANIFESTO')}
-            className="hover:text-white cursor-pointer transition-colors uppercase tracking-[0.25em]"
+            className="hover:text-white cursor-pointer transition-colors uppercase tracking-[0.25em] mech-btn py-1"
           >
             MANIFESTO
           </button>
@@ -25,7 +44,7 @@ export const Header: React.FC<HeaderProps> = ({ onEnterClick }) => {
           <button
             id="nav-system-btn"
             onClick={() => setActiveModal('SYSTEM')}
-            className="hover:text-white cursor-pointer transition-colors uppercase tracking-[0.25em]"
+            className="hover:text-white cursor-pointer transition-colors uppercase tracking-[0.25em] mech-btn py-1"
           >
             SYSTEM
           </button>
@@ -33,37 +52,47 @@ export const Header: React.FC<HeaderProps> = ({ onEnterClick }) => {
           <button
             id="nav-research-btn"
             onClick={() => setActiveModal('RESEARCH')}
-            className="hover:text-white cursor-pointer transition-colors uppercase tracking-[0.25em]"
+            className="hover:text-white cursor-pointer transition-colors uppercase tracking-[0.25em] mech-btn py-1"
           >
             RESEARCH
           </button>
         </nav>
 
         {/* Center YU Brand Mark */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-7 flex flex-col items-center pointer-events-auto">
+        <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto">
           <a
             href="#"
-            className="group flex flex-col items-center text-center cursor-pointer select-none"
+            className="group flex flex-col items-center text-center cursor-pointer select-none mech-btn"
             onClick={(e) => {
               e.preventDefault();
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
           >
-            <span className="text-[18px] md:text-[20px] font-extralight tracking-[0.4em] text-white opacity-95 pl-[0.4em] transition-opacity group-hover:opacity-100">
+            <span
+              className={`font-extralight tracking-[0.4em] text-white opacity-95 pl-[0.4em] transition-all duration-300 ${
+                isCompact ? 'text-[16px] md:text-[18px]' : 'text-[18px] md:text-[20px]'
+              }`}
+            >
               YU
             </span>
           </a>
         </div>
 
-        {/* Right Enter Button in Sleek Interface Design */}
-        <div className="flex items-center gap-4 text-[10px] sm:text-[11px] tracking-[0.25em] font-medium">
+        {/* Right Section Telemetry Indicator & Enter Button */}
+        <div className="flex items-center gap-6 text-[10px] sm:text-[11px] tracking-[0.25em] font-medium font-mono-code">
+          {/* Section telemetry (Desktop only, connects header to system spine) */}
+          <div className="hidden xl:flex items-center gap-2 text-[9px] text-[#6B7280]">
+            <span className="w-1 h-1 rounded-full bg-[#D4AF37]" />
+            <span>{currentSec.number} / {currentSec.name}</span>
+          </div>
+
           <button
             id="header-enter-btn"
             onClick={onEnterClick}
-            className="flex items-center gap-3 text-white hover:text-[#F3F4F6] transition-colors cursor-pointer group py-1"
+            className="flex items-center gap-3 text-white hover:text-[#F3F4F6] transition-colors cursor-pointer group py-1 mech-btn"
           >
             <span className="tracking-[0.25em]">ENTER</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-[#E5E7EB] shadow-[0_0_8px_rgba(255,255,255,0.4)] group-hover:scale-125 transition-transform" />
+            <div className="w-1.5 h-1.5 rounded-full bg-[#E5E7EB] shadow-[0_0_8px_rgba(255,255,255,0.4)] group-hover:scale-125 transition-transform mech-dot" />
           </button>
         </div>
       </header>
@@ -73,17 +102,17 @@ export const Header: React.FC<HeaderProps> = ({ onEnterClick }) => {
         {activeModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-black/85 backdrop-blur-md">
             <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 10 }}
+              initial={{ opacity: 0, scale: 0.98, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98, y: 10 }}
-              transition={{ duration: 0.25, ease: 'easeOut' }}
+              exit={{ opacity: 0, scale: 0.98, y: 8 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="relative w-full max-w-3xl max-h-[85vh] overflow-y-auto bg-[#0A0B0B] border border-[#1F2937] p-8 md:p-12 text-[#D1D5DB] shadow-2xl rounded-xs"
             >
               {/* Close Button */}
               <button
                 id="modal-close-btn"
                 onClick={() => setActiveModal(null)}
-                className="absolute top-6 right-6 p-2 text-[#8E9299] hover:text-white border border-[#1F2937] hover:border-[#4B5563] transition-colors"
+                className="absolute top-6 right-6 p-2 text-[#8E9299] hover:text-white border border-[#1F2937] hover:border-[#4B5563] transition-colors mech-btn"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -96,7 +125,7 @@ export const Header: React.FC<HeaderProps> = ({ onEnterClick }) => {
                     <span>YU MANIFESTO · 01</span>
                   </div>
 
-                  <h2 className="text-2xl md:text-3xl font-light tracking-[0.14em] text-white">
+                  <h2 className="text-2xl md:text-3xl font-light tracking-[0.14em] text-white font-display">
                     THE CONTROLLED CONSTRUCTION IMPERATIVE
                   </h2>
 
@@ -125,7 +154,7 @@ export const Header: React.FC<HeaderProps> = ({ onEnterClick }) => {
                     <span>HARNESS INTELLIGENCE. RETAIN CONTROL.</span>
                     <button
                       onClick={() => setActiveModal(null)}
-                      className="text-[#D1D5DB] hover:text-white underline underline-offset-4"
+                      className="text-[#D1D5DB] hover:text-white underline underline-offset-4 mech-btn"
                     >
                       RETURN TO SYSTEM
                     </button>
@@ -141,7 +170,7 @@ export const Header: React.FC<HeaderProps> = ({ onEnterClick }) => {
                     <span>YU SYSTEM SPECIFICATION · ARCHITECTURE</span>
                   </div>
 
-                  <h2 className="text-2xl md:text-3xl font-light tracking-[0.14em] text-white">
+                  <h2 className="text-2xl md:text-3xl font-light tracking-[0.14em] text-white font-display">
                     LOCAL-FIRST WORKBENCH ARCHITECTURE
                   </h2>
 
@@ -181,7 +210,7 @@ export const Header: React.FC<HeaderProps> = ({ onEnterClick }) => {
                     <span>STATUS: SPECIFICATION ACTIVE</span>
                     <button
                       onClick={() => setActiveModal(null)}
-                      className="text-[#D1D5DB] hover:text-white underline underline-offset-4"
+                      className="text-[#D1D5DB] hover:text-white underline underline-offset-4 mech-btn"
                     >
                       CLOSE SPECIFICATION
                     </button>
@@ -197,7 +226,7 @@ export const Header: React.FC<HeaderProps> = ({ onEnterClick }) => {
                     <span>YU RESEARCH · PAPER TR-2026.04</span>
                   </div>
 
-                  <h2 className="text-2xl md:text-3xl font-light tracking-[0.14em] text-white">
+                  <h2 className="text-2xl md:text-3xl font-light tracking-[0.14em] text-white font-display">
                     AGENT DRIFT & GOVERNED STATE TRANSITIONS
                   </h2>
 
@@ -222,7 +251,7 @@ export const Header: React.FC<HeaderProps> = ({ onEnterClick }) => {
                     <span>RESEARCH DIVISION · YU LABS</span>
                     <button
                       onClick={() => setActiveModal(null)}
-                      className="text-[#D1D5DB] hover:text-white underline underline-offset-4"
+                      className="text-[#D1D5DB] hover:text-white underline underline-offset-4 mech-btn"
                     >
                       CLOSE
                     </button>
@@ -236,3 +265,4 @@ export const Header: React.FC<HeaderProps> = ({ onEnterClick }) => {
     </>
   );
 };
+

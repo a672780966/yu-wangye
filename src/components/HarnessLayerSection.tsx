@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface HarnessEntity {
   id: string;
@@ -55,17 +55,36 @@ const HARNESS_ITEMS: HarnessEntity[] = [
 ];
 
 export const HarnessLayerSection: React.FC = () => {
-  const [activeItem, setActiveItem] = useState<HarnessEntity | null>(null);
+  const [hoveredItem, setHoveredItem] = useState<HarnessEntity | null>(null);
+  const [lockedItem, setLockedItem] = useState<HarnessEntity | null>(null);
+
+  const activeItem = lockedItem || hoveredItem;
+
+  const handleItemClick = (item: HarnessEntity) => {
+    if (lockedItem?.id === item.id) {
+      setLockedItem(null);
+    } else {
+      setLockedItem(item);
+    }
+  };
 
   return (
-    <section id="section-harness" className="relative w-full min-h-screen py-32 px-6 md:px-12 flex flex-col justify-center border-t border-[#1F2937]/50 bg-[#0A0B0B]">
+    <section
+      id="section-harness"
+      onClick={(e) => {
+        // Clicking outside interactive elements unlocks
+        if ((e.target as HTMLElement).closest('[data-harness-item]')) return;
+        setLockedItem(null);
+      }}
+      className="relative w-full min-h-screen py-32 px-6 md:px-12 flex flex-col justify-center border-t border-[#1F2937]/50 bg-[#0A0B0B]"
+    >
       <div className="max-w-6xl mx-auto w-full">
         {/* Section Tag */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
+          transition={{ duration: 0.7 }}
           className="flex items-center gap-3 text-xs tracking-[0.35em] text-[#8E9299] font-mono-code mb-12"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-[#6B7280]" />
@@ -86,76 +105,104 @@ export const HarnessLayerSection: React.FC = () => {
         {/* Interactive Mechanical Harness Matrix & Converging Lines */}
         <div className="relative py-8">
           {/* Top Capability Anchors */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6 relative z-10">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4 relative z-10">
             {HARNESS_ITEMS.map((item) => {
-              const isHovered = activeItem?.id === item.id;
+              const isSelected = activeItem?.id === item.id;
+              const isLocked = lockedItem?.id === item.id;
+              const isDimmed = activeItem && !isSelected;
+
               return (
-                <div
+                <button
                   key={item.id}
-                  onMouseEnter={() => setActiveItem(item)}
-                  onMouseLeave={() => setActiveItem(null)}
-                  className="flex flex-col items-center text-center cursor-pointer group p-3 transition-all duration-300"
+                  data-harness-item="true"
+                  onClick={() => handleItemClick(item)}
+                  onMouseEnter={() => setHoveredItem(item)}
+                  onMouseLeave={() => setHoveredItem(null)}
+                  className={`flex flex-col items-center text-center cursor-pointer p-3 border rounded-xs mech-btn transition-all duration-200 ${
+                    isSelected
+                      ? 'border-[#D4AF37] bg-[#14171E] shadow-[0_0_15px_rgba(212,175,55,0.12)]'
+                      : isDimmed
+                      ? 'border-[#1F2937]/50 bg-[#08090A] opacity-40 hover:opacity-80'
+                      : 'border-[#1F2937] bg-[#0E1012] hover:border-[#4B5563] hover:bg-[#121418]'
+                  }`}
                 >
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-1.5">
                     <span
-                      className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                        isHovered
-                          ? 'bg-[#D4AF37] scale-150 shadow-[0_0_10px_rgba(212,175,55,0.9)]'
-                          : 'bg-[#4B5563] group-hover:bg-[#9CA3AF]'
+                      className={`w-1.5 h-1.5 rounded-full transition-all duration-200 mech-dot ${
+                        isSelected
+                          ? 'bg-[#D4AF37] scale-125 shadow-[0_0_8px_rgba(212,175,55,0.9)]'
+                          : 'bg-[#4B5563]'
                       }`}
                     />
                     <span
-                      className={`text-xs md:text-sm font-mono-code tracking-[0.25em] transition-colors duration-300 ${
-                        isHovered ? 'text-white font-medium' : 'text-[#8E9299] group-hover:text-[#E5E7EB]'
+                      className={`text-xs md:text-sm font-mono-code tracking-[0.25em] transition-colors ${
+                        isSelected ? 'text-white font-medium' : 'text-[#8E9299]'
                       }`}
                     >
                       {item.name}
                     </span>
                   </div>
-                  <span className="text-[9px] tracking-[0.18em] text-[#6B7280] font-mono-code uppercase">
-                    {item.type.split(' ')[0]}
-                  </span>
-                </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] tracking-[0.16em] text-[#6B7280] font-mono-code uppercase">
+                      {item.type.split(' ')[0]}
+                    </span>
+                    {isLocked && (
+                      <span className="w-1 h-1 rounded-full bg-[#D4AF37]" title="Focus Locked" />
+                    )}
+                  </div>
+                </button>
               );
             })}
           </div>
 
-          {/* SVG Fiber Convergence Rail (Desktop) */}
+          {/* SVG Fiber Convergence Rail (Desktop Signal Routing) */}
           <div className="relative w-full h-32 md:h-44 hidden md:block">
             <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 200">
               <defs>
-                <linearGradient id="fiberGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="rgba(75, 85, 99, 0.4)" />
-                  <stop offset="100%" stopColor="rgba(212, 175, 55, 0.8)" />
-                </linearGradient>
                 <linearGradient id="activeFiberGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="rgba(148, 187, 233, 0.9)" />
+                  <stop offset="0%" stopColor="rgba(148, 187, 201, 1)" />
                   <stop offset="100%" stopColor="rgba(212, 175, 55, 1)" />
                 </linearGradient>
               </defs>
 
-              {/* 6 Structural Converging Curves */}
+              {/* 6 Structural Converging Curves with Traveling Signal */}
               {[83, 250, 417, 583, 750, 917].map((x, idx) => {
                 const item = HARNESS_ITEMS[idx];
-                const isActive = activeItem?.id === item.id;
+                const isSelected = activeItem?.id === item.id;
+                const isDimmed = activeItem && !isSelected;
+
                 return (
                   <g key={idx}>
+                    {/* Base structural curve */}
                     <path
                       d={`M ${x} 10 C ${x} 90, 500 110, 500 190`}
                       fill="none"
-                      stroke={isActive ? 'url(#activeFiberGrad)' : 'rgba(255,255,255,0.06)'}
-                      strokeWidth={isActive ? 1.8 : 0.8}
-                      strokeDasharray={isActive ? 'none' : '3,3'}
+                      stroke={
+                        isSelected
+                          ? 'url(#activeFiberGrad)'
+                          : isDimmed
+                          ? 'rgba(255,255,255,0.03)'
+                          : 'rgba(255,255,255,0.08)'
+                      }
+                      strokeWidth={isSelected ? 1.8 : 0.75}
+                      strokeDasharray={isSelected ? 'none' : '3,3'}
                       className="transition-all duration-300"
                     />
-                    {isActive && (
-                      <circle
-                        cx="500"
-                        cy="190"
-                        r="3"
+
+                    {/* Traveling Signal Pulse (300-450ms) */}
+                    {isSelected && (
+                      <motion.circle
+                        r="3.5"
                         fill="#D4AF37"
-                        className="animate-ping"
-                      />
+                        filter="drop-shadow(0 0 6px #D4AF37)"
+                      >
+                        <animateMotion
+                          path={`M ${x} 10 C ${x} 90, 500 110, 500 190`}
+                          dur="0.4s"
+                          repeatCount="indefinite"
+                        />
+                      </motion.circle>
                     )}
                   </g>
                 );
@@ -166,7 +213,13 @@ export const HarnessLayerSection: React.FC = () => {
           {/* Converged Center: YU CONTROLLED CONSTRUCTION LAYER */}
           <div className="flex flex-col items-center text-center mt-6 relative z-10">
             {/* Center Anchor Point */}
-            <div className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] shadow-[0_0_12px_rgba(212,175,55,0.9)] mb-3" />
+            <div
+              className={`w-2 h-2 rounded-full transition-all duration-300 mb-3 ${
+                activeItem
+                  ? 'bg-[#D4AF37] scale-125 shadow-[0_0_14px_rgba(212,175,55,1)]'
+                  : 'bg-[#4B5563]'
+              }`}
+            />
             
             <h4 className="font-display text-4xl sm:text-5xl md:text-6xl font-light tracking-[0.25em] text-white pl-[0.25em] mb-2">
               YU
@@ -177,21 +230,43 @@ export const HarnessLayerSection: React.FC = () => {
             </div>
 
             {/* Dynamic Governance Inspector Badge */}
-            <div className="mt-8 min-h-[72px] max-w-xl px-6 py-3 border border-[#1F2937] bg-[#0E1012] rounded-xs flex flex-col items-center justify-center text-center transition-all duration-300">
-              {activeItem ? (
-                <div className="space-y-1">
-                  <div className="text-xs font-mono-code text-[#D4AF37] tracking-wider">
-                    [HARNESS CONSTRAINT] {activeItem.name} — {activeItem.type}
-                  </div>
-                  <p className="text-xs text-[#D1D5DB] font-light">
-                    {activeItem.governanceContract}
-                  </p>
-                </div>
-              ) : (
-                <p className="text-xs font-mono-code text-[#6B7280] tracking-wider">
-                  Hover over capabilities to inspect YU determinism envelopes & state isolation.
-                </p>
-              )}
+            <div
+              data-harness-item="true"
+              className="mt-8 min-h-[76px] max-w-xl w-full px-6 py-4 border border-[#1F2937] bg-[#0E1012] rounded-xs flex flex-col items-center justify-center text-center transition-all duration-200 shadow-lg"
+            >
+              <AnimatePresence mode="wait">
+                {activeItem ? (
+                  <motion.div
+                    key={activeItem.id}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.18 }}
+                    className="space-y-1.5"
+                  >
+                    <div className="flex items-center justify-center gap-2 text-xs font-mono-code text-[#D4AF37] tracking-wider">
+                      <span>[HARNESS CONTRACT]</span>
+                      <span className="text-white font-medium">{activeItem.name}</span>
+                      <span className="text-[#6B7280]">·</span>
+                      <span className="text-[#94BBC9] text-[11px]">{activeItem.type}</span>
+                      {lockedItem?.id === activeItem.id && (
+                        <span className="text-[9px] px-1.5 py-0.2 border border-[#D4AF37]/50 text-[#D4AF37] ml-1">LOCKED</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-[#D1D5DB] font-light leading-relaxed">
+                      {activeItem.governanceContract}
+                    </p>
+                  </motion.div>
+                ) : (
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-xs font-mono-code text-[#6B7280] tracking-wider"
+                  >
+                    Hover to preview signal routing · Click to lock capability focus
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
@@ -199,3 +274,4 @@ export const HarnessLayerSection: React.FC = () => {
     </section>
   );
 };
+

@@ -56,3 +56,38 @@
 .border-sleek-border {
   border-color: #1F2937;
 }
+
+/* Mechanical Membrane Switch Button Press Feedback (80-120ms) */
+.mech-btn {
+  transition: transform 100ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 120ms ease-out,
+              background-color 120ms ease-out,
+              color 120ms ease-out,
+              opacity 120ms ease-out;
+}
+.mech-btn:active {
+  transform: translateY(1px);
+}
+.mech-btn:active .mech-dot {
+  transform: scale(0.95);
+}
+
+/* Idle State transitions: When data-idle="true" on root, calm down glowing loops */
+[data-idle="true"] .idle-calm {
+  opacity: 0.6;
+  transition: opacity 1.8s ease-in-out;
+}
+[data-idle="true"] .idle-freeze {
+  animation-play-state: paused !important;
+}
+
+/* Reduced Motion Compliance */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
